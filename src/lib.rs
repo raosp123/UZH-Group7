@@ -10,7 +10,7 @@ pub mod countries {
 pub mod accounts{
 
     pub const EXAMPLE_ACCOUNT: &[u8; 32] = &[1u8 ; 32];
-
+ 
 }
 
 //Used to check if User attributes are partially or fully validated
@@ -124,7 +124,8 @@ impl AgePolicy {
 /// For testing it currently holds the total number of votes, and the NationalityPolicy struct
 #[derive(Serialize, SchemaType)]
 struct State {
-    total_votes: u64,
+    yes_votes: u64,
+    no_votes: u64,
     nationality_policy: NationalityPolicy,
     age_policy: AgePolicy,
     previous_votes: Vec<AccountAddress>,
@@ -134,10 +135,16 @@ struct State {
 //Age violation and Already Voted added(not necessarily to use)
 #[derive(Reject, Debug, PartialEq, Eq)]
 enum ReceiveError {
+    #[from(ParseError)]
     NotAnAccount,
     NationalityPolicyViolation,
     AgePolicyViolation,
-    AlreadyVoted
+    AlreadyVoted,
+}
+
+#[derive(SchemaType, Deserial, PartialEq, Eq, Clone, Copy)]
+enum ReceiveParameter{
+    U8(),
 }
 
 ///The initialisation of the contract, as you can see there is some initial setup
@@ -160,7 +167,8 @@ fn contract_init<'a, S: HasStateApi>(
         scope: Quantifier::All,
     };
     let state = State {
-        total_votes: 0u64,
+        no_votes: 0u64,
+        yes_votes: 0u64,
         nationality_policy,
         age_policy,
         previous_votes: vec![],
@@ -175,6 +183,8 @@ fn just_increment<'a, S: HasStateApi, RC: HasReceiveContext>(
     ctx: &RC,
     host: &mut impl HasHost<State, StateApiType = S>,
 ) -> Result<u64, ReceiveError> {
+
+    
     // Only allow accounts to increment the counter
     if let Address::Contract(_) = ctx.sender() {
         bail!(ReceiveError::NotAnAccount)
@@ -204,9 +214,28 @@ fn just_increment<'a, S: HasStateApi, RC: HasReceiveContext>(
         ReceiveError::AgePolicyViolation
     );
 
-    //Increment total votes
-    host.state_mut().total_votes += 1;
-    Ok(host.state().total_votes)
+    host.state_mut().yes_votes += 1;
+    Ok(host.state().yes_votes)
+    // ensure!(
+    //     vote_choice == ReceiveParameter::U8(),
+    //     ReceiveError::InvalidInput
+    // );
+
+    // if vote_choice as u8 == 1u8{
+    //     println!("yes_vote");
+    //     host.state_mut().yes_votes += 1;
+    //     Ok(host.state().yes_votes)
+    // }
+    // else if vote_choice as u8 == 2u8{
+
+    //     println!("no_vote");
+    //     host.state_mut().no_votes += 1;
+    //     Ok(host.state().no_votes)
+    // }
+    // else {
+    //     Ok(host.state().yes_votes)
+    // }
+    
 
 }
 
@@ -229,12 +258,13 @@ mod tests {
             scope: Quantifier::All,
         };
         let age_policy = AgePolicy {
-            maximal_dob: 20200101,
+            maximal_dob: 20020101,
             minimal_dob: 19000101,
             scope: Quantifier::All,
         };
         let state = State {
-            total_votes: 0u64,
+            yes_votes: 0u64,
+            no_votes: 0u64,
             nationality_policy,
             age_policy,
             previous_votes: vec![],
@@ -245,6 +275,7 @@ mod tests {
 
         //Test 1: Increment counter with valid attributes
         let mut ctx = TestReceiveContext::empty();
+        
         ctx.metadata_mut()
             .set_slot_time(Timestamp::from_timestamp_millis(100));
         ctx.set_sender(Address::Account(account1));
@@ -253,12 +284,14 @@ mod tests {
             (attributes::COUNTRY_OF_RESIDENCE, countries::DK.to_vec()),
             (attributes::DOB, vec![2, 0, 0, 0, 0, 1, 0, 1]),
         ];
+
         let policy = Policy {
             created_at: Timestamp::from_timestamp_millis(0),
             identity_provider: 1,
             valid_to: Timestamp::from_timestamp_millis(100),
             items: attr,
         };
+
         ctx.push_policy(policy);
 
         let res = just_increment(&ctx, &mut host);
