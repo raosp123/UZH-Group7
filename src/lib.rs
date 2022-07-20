@@ -80,15 +80,16 @@ impl AgePolicy {
             while let Some((tag, len)) = policy.next_item(&mut buf) {
                 if tag == attributes::DOB {
                     //convert into a u64 decimal date
-                    let mut date = buf[0..len.into()].to_vec();
+                    let date = buf[0..len.into()].to_vec();
                     let mut _dob: u64 = 0;
                     let mut cnt: u64 = 0u64;
                     loop {
-                        _dob = _dob * 10 + date[cnt as usize] as u64;
-                        cnt += 1;
-                        if cnt as usize == buf.len() {
+                        if cnt as usize == date.len() {
                             break;
                         }
+                        _dob = _dob * 10 + date[cnt as usize] as u64;
+                        cnt += 1;
+                        
                     }
                     if (self.minimal_dob <= _dob) && (self.maximal_dob >= _dob) {
                         //We have found one credential which satisfies the policy
