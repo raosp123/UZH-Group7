@@ -1,6 +1,6 @@
 use concordium_std::*;
 
-//This just lets us have these countries as constants in byte form
+//This just lets u&s have these countries as constants in byte form
 pub mod countries {
     pub const CH: &[u8; 2] = b"CH"; //Swiss
     pub const DK: &[u8; 2] = b"DK"; //Denmark
@@ -127,7 +127,7 @@ struct State {
     total_votes: u64,
     nationality_policy: NationalityPolicy,
     age_policy: AgePolicy,
-    previous_votes: Vec<Vec<u8>>,
+    previous_votes: Vec<AccountAddress>,
 }
 
 //This is Error throwing, can ignore
@@ -137,7 +137,7 @@ enum ReceiveError {
     NotAnAccount,
     NationalityPolicyViolation,
     AgePolicyViolation,
-    AlreadyVoted,
+    AlreadyVoted
 }
 
 ///The initialisation of the contract, as you can see there is some initial setup
@@ -163,7 +163,7 @@ fn contract_init<'a, S: HasStateApi>(
         total_votes: 0u64,
         nationality_policy,
         age_policy,
-        previous_votes: vec![vec![1;32];0],
+        previous_votes: vec![],
     };
     Ok(state)
 }
@@ -180,11 +180,15 @@ fn just_increment<'a, S: HasStateApi, RC: HasReceiveContext>(
         bail!(ReceiveError::NotAnAccount)
     }
 
-
-    ensure!(
-        host.state().previous_votes.contains(ctx.sender().to_vec()),
-        ReceiveError::AlreadyVoted
-    );
+    //check if the current Account address has already been used to vote
+    if let Address::Account(user) = ctx.sender(){
+        ensure!(
+            !(host.state().previous_votes.contains(&user)),
+            ReceiveError::AlreadyVoted
+        );
+        host.state_mut().previous_votes.push(user);
+        
+    }
 
     // Only allow accounts that satisfy the nationality policy
     ensure!(
@@ -203,6 +207,7 @@ fn just_increment<'a, S: HasStateApi, RC: HasReceiveContext>(
     //Increment total votes
     host.state_mut().total_votes += 1;
     Ok(host.state().total_votes)
+
 }
 
 ///Unit
@@ -232,7 +237,7 @@ mod tests {
             total_votes: 0u64,
             nationality_policy,
             age_policy,
-            previous_votes: vec![vec![1;32];0],
+            previous_votes: vec![],
             
         };
         let mut host = TestHost::new(state, state_builder);
