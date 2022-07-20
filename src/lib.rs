@@ -206,9 +206,15 @@ mod tests {
             allowed_nationality: vec![countries::CH.to_vec()],
             scope: Quantifier::All,
         };
+        let age_policy = AgePolicy {
+            maximal_dob: 20200101,
+            minimal_dob: 19000101,
+            scope: Quantifier::All,
+        };
         let state = State {
             total_votes: 0u64,
             nationality_policy,
+            age_policy,
         };
         let mut host = TestHost::new(state, state_builder);
         host.set_self_balance(amount);
@@ -221,6 +227,7 @@ mod tests {
         let attr = vec![
             (attributes::NATIONALITY, countries::CH.to_vec()),
             (attributes::COUNTRY_OF_RESIDENCE, countries::DK.to_vec()),
+            (attributes::DOB, vec![2, 0, 0, 0, 0, 1, 0, 1]),
         ];
         let policy = Policy {
             created_at: Timestamp::from_timestamp_millis(0),
