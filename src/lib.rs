@@ -2,10 +2,9 @@ use concordium_std::*;
 
 //This just lets us have these countries as constants in byte form
 pub mod countries {
-    pub const CH: &[u8; 2] = b"CH";
-    pub const DK: &[u8; 2] = b"DK";
+    pub const CH: &[u8; 2] = b"CH"; //Swiss
+    pub const DK: &[u8; 2] = b"DK"; //Denmark
 }
-
 
 //Used to check if User attributes are partially or fully validated
 #[derive(Serialize, Debug, PartialEq, Eq)]
@@ -14,18 +13,17 @@ enum Quantifier {
     All,
 }
 
-
 /// This is like a class/struct that holds what the valid nationalities are
 #[derive(Serialize, SchemaType)]
 struct NationalityPolicy {
     //List of valid residences
+    //As in this case, Swiss
     allowed_nationality: Vec<Vec<u8>>,
     //Should this hold for all or some credential
     scope: Quantifier,
 }
 
-
-/// This implements the checks for the user's nationality. 
+/// This implements the checks for the user's nationality.
 /// For now we are checking if the NATIONALITY matches the swiss code "CH", if it does our function returns true.
 /// Ignore the other comments inside the function, that is from the example code they sent us, I leave them there for now
 impl NationalityPolicy {
@@ -53,6 +51,63 @@ impl NationalityPolicy {
                 return false;
             }
         }
+        //doesn't fit in any policy
+        if self.scope == Quantifier::Any {
+            return false;
+        }
+        return true;
+    }
+}
+
+#[derive(Serialize, SchemaType)]
+struct AgePolicy {
+    //Date Of Birth must be in this range [minimal_DOB,maximal_DOB]
+    minimal_dob: u64,
+    maximal_dob: u64,
+    //Should this hold for all or some credential
+    scope: Quantifier,
+}
+
+/// This implements the checks for the user's age.
+/// date of birth is used for checking
+impl AgePolicy {
+    fn is_satisfied<CD: HasCommonData>(&self, policies: CD::PolicyIteratorType) -> bool {
+        //Iterate over all account policies
+        for mut policy in policies {
+            //Iterate over attribtues of an account policy
+            let mut policy_ok: bool = false;
+            let mut buf: [u8; 31] = [0; 31];
+            while let Some((tag, len)) = policy.next_item(&mut buf) {
+                if tag == attributes::DOB {
+                    //convert into a u64 decimal date
+                    let mut date = buf[0..len.into()].to_vec();
+                    let mut _dob: u64 = 0;
+                    let mut cnt: u64 = 0u64;
+                    loop {
+                        _dob = _dob * 10 + date[cnt as usize] as u64;
+                        cnt += 1;
+                        if cnt as usize == buf.len() {
+                            break;
+                        }
+                    }
+                    if (self.minimal_dob <= _dob) && (self.maximal_dob >= _dob) {
+                        //We have found one credential which satisfies the policy
+                        if self.scope == Quantifier::Any {
+                            return true;
+                        }
+                        policy_ok = true;
+                    }
+                }
+            }
+            //We found a credential that did not contain the right attribute
+            if !policy_ok && self.scope == Quantifier::All {
+                return false;
+            }
+        }
+        //doesn't fit in any policy
+        if self.scope == Quantifier::Any {
+            return false;
+        }
         return true;
     }
 }
@@ -63,16 +118,18 @@ impl NationalityPolicy {
 struct State {
     total_votes: u64,
     nationality_policy: NationalityPolicy,
+    //age_policy: AgePolicy,
 }
 
 //This is Error throwing, can ignore
+//Age violation and Already Voted added(not necessarily to use)
 #[derive(Reject, Debug, PartialEq, Eq)]
 enum ReceiveError {
     NotAnAccount,
     NationalityPolicyViolation,
+    AgePolicyViolation,
+    AlreadyVoted,
 }
-
-
 
 ///The initialisation of the contract, as you can see there is some initial setup
 /// and then we start setting up the contract initial state. We explicitly state that only
@@ -91,10 +148,10 @@ fn contract_init<'a, S: HasStateApi>(
     let state = State {
         total_votes: 0u64,
         nationality_policy,
+        //age_policy,
     };
     Ok(state)
 }
-
 
 ///This is the function called when the contract is receiving something, i.e when a user tries to run the contract after it has been initialised
 /// at the moment for simplicity and testing, when a user successfully calls the contract and they have a valid nationality, the vote counter is incremeneted by one
@@ -120,7 +177,6 @@ fn just_increment<'a, S: HasStateApi, RC: HasReceiveContext>(
     host.state_mut().total_votes += 1;
     Ok(host.state().total_votes)
 }
-
 
 ///Unit
 /// Testing
