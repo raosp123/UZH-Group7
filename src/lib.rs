@@ -118,7 +118,7 @@ impl AgePolicy {
 struct State {
     total_votes: u64,
     nationality_policy: NationalityPolicy,
-    //age_policy: AgePolicy,
+    age_policy: AgePolicy,
 }
 
 //This is Error throwing, can ignore
@@ -145,10 +145,15 @@ fn contract_init<'a, S: HasStateApi>(
         allowed_nationality: vec![countries::CH.to_vec()],
         scope: Quantifier::All,
     };
+    let age_policy = AgePolicy {
+        maximal_dob: 20200101u64,
+        minimal_dob: 19000101u64,
+        scope: Quantifier::All,
+    };
     let state = State {
         total_votes: 0u64,
         nationality_policy,
-        //age_policy,
+        age_policy,
     };
     Ok(state)
 }
@@ -173,6 +178,11 @@ fn just_increment<'a, S: HasStateApi, RC: HasReceiveContext>(
         ReceiveError::NationalityPolicyViolation
     );
 
+    // Only allow accounts that satisfy the age policy
+    ensure!(
+        host.state().age_policy.is_satisfied::<RC>(ctx.policies()),
+        ReceiveError::AgePolicyViolation
+    );
     //Increment total votes
     host.state_mut().total_votes += 1;
     Ok(host.state().total_votes)
