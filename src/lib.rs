@@ -6,6 +6,13 @@ pub mod countries {
     pub const DK: &[u8; 2] = b"DK"; //Denmark
 }
 
+
+pub mod accounts{
+
+    pub const EXAMPLE_ACCOUNT: &[u8; 32] = &[1u8 ; 32];
+
+}
+
 //Used to check if User attributes are partially or fully validated
 #[derive(Serialize, Debug, PartialEq, Eq)]
 enum Quantifier {
@@ -120,6 +127,7 @@ struct State {
     total_votes: u64,
     nationality_policy: NationalityPolicy,
     age_policy: AgePolicy,
+    previous_votes: Vec<Vec<u8>>,
 }
 
 //This is Error throwing, can ignore
@@ -155,6 +163,7 @@ fn contract_init<'a, S: HasStateApi>(
         total_votes: 0u64,
         nationality_policy,
         age_policy,
+        previous_votes: vec![vec![1;32];0],
     };
     Ok(state)
 }
@@ -171,6 +180,12 @@ fn just_increment<'a, S: HasStateApi, RC: HasReceiveContext>(
         bail!(ReceiveError::NotAnAccount)
     }
 
+
+    ensure!(
+        host.state().previous_votes.contains(ctx.sender().to_vec()),
+        ReceiveError::AlreadyVoted
+    );
+
     // Only allow accounts that satisfy the nationality policy
     ensure!(
         host.state()
@@ -184,6 +199,7 @@ fn just_increment<'a, S: HasStateApi, RC: HasReceiveContext>(
         host.state().age_policy.is_satisfied::<RC>(ctx.policies()),
         ReceiveError::AgePolicyViolation
     );
+
     //Increment total votes
     host.state_mut().total_votes += 1;
     Ok(host.state().total_votes)
@@ -216,6 +232,8 @@ mod tests {
             total_votes: 0u64,
             nationality_policy,
             age_policy,
+            previous_votes: vec![vec![1;32];0],
+            
         };
         let mut host = TestHost::new(state, state_builder);
         host.set_self_balance(amount);
