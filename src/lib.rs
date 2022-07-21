@@ -162,7 +162,7 @@ fn contract_init<'a, S: HasStateApi>(
         scope: Quantifier::All,
     };
     let age_policy = AgePolicy {
-        maximal_dob: 20040101u64,
+        maximal_dob: 20020101u64,
         minimal_dob: 19000101u64,
         scope: Quantifier::All,
     };
@@ -283,7 +283,7 @@ mod tests {
         let account1 = AccountAddress([1u8; 32]);
         let amount = Amount::from_micro_ccd(0);
 
-        //Create test state
+        //Create test state.
         let state_builder = TestStateBuilder::new();
         let nationality_policy = NationalityPolicy {
             allowed_nationality: vec![countries::CH.to_vec()],
@@ -294,6 +294,12 @@ mod tests {
             minimal_dob: 19000101,
             scope: Quantifier::All,
         };
+
+        //INPUT TESTING 1.
+        //This is where you can set Initial State values for the user
+        //If you put in the accounts address in the previous vote field, it will not allow you to vote. e.g, take the account address
+        //initialised above "AccountAddress([1u8; 32])", and put it in "previous_votes: vec![AccountAddress([1u8; 32])]"
+        // This will give you an AlreadyVoted error when u run the test
         let state = State {
             yes_votes: 0u64,
             no_votes: 0u64,
@@ -311,9 +317,13 @@ mod tests {
         ctx.metadata_mut()
             .set_slot_time(Timestamp::from_timestamp_millis(100));
         ctx.set_sender(Address::Account(account1));
+
+
+        //INPUT TESTING 2
+        //This is where you can set Account details for the user
+        //Please feel free to change Nationality, and Date of birth to either valid or invalid values to see what happens
         let attr = vec![
             (attributes::NATIONALITY, countries::CH.to_vec()),
-            (attributes::COUNTRY_OF_RESIDENCE, countries::DK.to_vec()),
             (attributes::DOB, vec![2, 0, 0, 0, 0, 1, 0, 1]),
         ];
 
