@@ -162,7 +162,7 @@ fn contract_init<'a, S: HasStateApi>(
         scope: Quantifier::All,
     };
     let age_policy = AgePolicy {
-        maximal_dob: 20200101u64,
+        maximal_dob: 20040101u64,
         minimal_dob: 19000101u64,
         scope: Quantifier::All,
     };
@@ -207,7 +207,7 @@ fn vote_yes<'a, S: HasStateApi, RC: HasReceiveContext>(
         ReceiveError::NationalityPolicyViolation
     );
 
-    // Only allow accounts that satisfy the age policy
+    // Age Policy check, COMMENT THIS OUT FOR THE TESTNET DEPLOYMENT
     ensure!(
         host.state().age_policy.is_satisfied::<RC>(ctx.policies()),
         ReceiveError::AgePolicyViolation
@@ -251,7 +251,7 @@ fn vote_no<'a, S: HasStateApi, RC: HasReceiveContext>(
         ReceiveError::NationalityPolicyViolation
     );
 
-    // Only allow accounts that satisfy the age policy
+    // Age Policy check, COMMENT THIS OUT FOR THE TESTNET DEPLOYMENT
     ensure!(
         host.state().age_policy.is_satisfied::<RC>(ctx.policies()),
         ReceiveError::AgePolicyViolation
@@ -267,10 +267,8 @@ fn vote_view<S: HasStateApi>(
     _ctx: &impl HasReceiveContext,
     host: &impl HasHost<State, StateApiType = S>,
 ) -> ReceiveResult<(u64,u64)>{
-    let yesvotes = host.state().yes_votes;
-    let novotes = host.state().no_votes;
-
-    Ok((yesvotes,novotes))
+   
+    Ok((host.state().yes_votes,host.state().no_votes))
 }
 
 ///Unit
@@ -330,7 +328,7 @@ mod tests {
 
         ctx.push_policy(policy);
 
-        let res = vote_yes(&ctx, &mut host);
+        let res = vote_no(&ctx, &mut host);
         let res = dbg!(res);
         claim!(res.is_ok(), "Should work");
     }
