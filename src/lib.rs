@@ -262,8 +262,16 @@ fn vote_no<'a, S: HasStateApi, RC: HasReceiveContext>(
 
 }
 
+#[receive(contract = "voting", name = "check_votes")]
+fn vote_view<S: HasStateApi>(
+    _ctx: &impl HasReceiveContext,
+    host: &impl HasHost<State, StateApiType = S>,
+) -> ReceiveResult<(u64,u64)>{
+    let yesvotes = host.state().yes_votes;
+    let novotes = host.state().no_votes;
 
-
+    Ok((yesvotes,novotes))
+}
 
 ///Unit
 /// Testing
