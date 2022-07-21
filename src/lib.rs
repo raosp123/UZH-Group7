@@ -178,13 +178,12 @@ fn contract_init<'a, S: HasStateApi>(
 
 ///This is the function called when the contract is receiving something, i.e when a user tries to run the contract after it has been initialised
 /// at the moment for simplicity and testing, when a user successfully calls the contract and they have a valid nationality, the vote counter is incremeneted by one
-#[receive(contract = "voting", name = "vote-increment", mutable)]
-fn just_increment<'a, S: HasStateApi, RC: HasReceiveContext>(
+#[receive(contract = "voting", name = "vote_yes", mutable)]
+fn vote_yes<'a, S: HasStateApi, RC: HasReceiveContext>(
     ctx: &RC,
     host: &mut impl HasHost<State, StateApiType = S>,
 ) -> Result<u64, ReceiveError> {
 
-    
     // Only allow accounts to increment the counter
     if let Address::Contract(_) = ctx.sender() {
         bail!(ReceiveError::NotAnAccount)
@@ -216,28 +215,55 @@ fn just_increment<'a, S: HasStateApi, RC: HasReceiveContext>(
 
     host.state_mut().yes_votes += 1;
     Ok(host.state().yes_votes)
-    // ensure!(
-    //     vote_choice == ReceiveParameter::U8(),
-    //     ReceiveError::InvalidInput
-    // );
-
-    // if vote_choice as u8 == 1u8{
-    //     println!("yes_vote");
-    //     host.state_mut().yes_votes += 1;
-    //     Ok(host.state().yes_votes)
-    // }
-    // else if vote_choice as u8 == 2u8{
-
-    //     println!("no_vote");
-    //     host.state_mut().no_votes += 1;
-    //     Ok(host.state().no_votes)
-    // }
-    // else {
-    //     Ok(host.state().yes_votes)
-    // }
     
 
 }
+
+
+///Function used to vote no
+/// 
+#[receive(contract = "voting", name = "vote_no", mutable)]
+fn vote_no<'a, S: HasStateApi, RC: HasReceiveContext>(
+    ctx: &RC,
+    host: &mut impl HasHost<State, StateApiType = S>,
+) -> Result<u64, ReceiveError> {
+
+    // Only allow accounts to increment the counter
+    if let Address::Contract(_) = ctx.sender() {
+        bail!(ReceiveError::NotAnAccount)
+    }
+
+    //check if the current Account address has already been used to vote
+    if let Address::Account(user) = ctx.sender(){
+        ensure!(
+            !(host.state().previous_votes.contains(&user)),
+            ReceiveError::AlreadyVoted
+        );
+        host.state_mut().previous_votes.push(user);
+        
+    }
+
+    // Only allow accounts that satisfy the nationality policy
+    ensure!(
+        host.state()
+            .nationality_policy
+            .is_satisfied::<RC>(ctx.policies()),
+        ReceiveError::NationalityPolicyViolation
+    );
+
+    // Only allow accounts that satisfy the age policy
+    ensure!(
+        host.state().age_policy.is_satisfied::<RC>(ctx.policies()),
+        ReceiveError::AgePolicyViolation
+    );
+
+    host.state_mut().no_votes += 1;
+    Ok(host.state().no_votes)
+
+}
+
+
+
 
 ///Unit
 /// Testing
@@ -285,6 +311,8 @@ mod tests {
             (attributes::DOB, vec![2, 0, 0, 0, 0, 1, 0, 1]),
         ];
 
+        
+
         let policy = Policy {
             created_at: Timestamp::from_timestamp_millis(0),
             identity_provider: 1,
@@ -294,7 +322,7 @@ mod tests {
 
         ctx.push_policy(policy);
 
-        let res = just_increment(&ctx, &mut host);
+        let res = vote_yes(&ctx, &mut host);
         let res = dbg!(res);
         claim!(res.is_ok(), "Should work");
     }
